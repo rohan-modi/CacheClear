@@ -120,6 +120,8 @@
     "variant": "cpp",
     "vector": "cpp",
     "algorithm": "cpp",
-    "filesystem": "cpp"
+    "filesystem": "cpp",
+    "__tree": "cpp",
+    "set": "cpp"
 }
 }
