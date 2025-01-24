@@ -61,9 +61,6 @@ int main(int argc, char* argv[]) {
         std::vector<fs::directory_entry> files;
         std::vector<fs::directory_entry> directories;
 
-        std::vector<std::pair<int, std::string>> filesInfo;
-        std::vector<std::pair<int, std::string>> directoriesInfo;
-
         for (const auto& entry : fs::directory_iterator(current_directory)) {
             if (fs::is_regular_file(entry.status())) {
                 files.push_back(entry);
@@ -72,49 +69,24 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Sort files first
+        // Output files first
         for (const auto& file : files) {
-            filesInfo.push_back({fs::file_size(file), file.path().filename().string()});
-            // std::cout << file.path().filename().string();
-            // std::cout << " (Size: " << fs::file_size(file) << " bytes)";
-            // std::cout << std::endl;
-        }
-
-        std::sort(filesInfo.begin(), filesInfo.end(),
-        [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
-            return a.first > b.first;  // Sorting by integer in descending order
-        });
-
-        for (int i = 0; i < filesInfo.size(); i++) {
-            std::cout << filesInfo[i].second;
-            std::cout << " (Size: " << filesInfo[i].first << " bytes)";
+            std::cout << file.path().filename().string();
+            std::cout << " (Size: " << fs::file_size(file) << " bytes)";
             std::cout << std::endl;
         }
 
         // Output directories
         for (const auto& directory : directories) {
             std::uintmax_t dir_size = calculate_directory_size(directory.path(), max_depth, max_files, max_size, 1, &file_count, &exceeded_limit);
-            // std::cout << directory.path().filename().string();
-            // std::cout << " (Directory, Size: " << dir_size << " bytes)";
-            // std::cout << std::endl;
-
-            directoriesInfo.push_back({dir_size, directory.path().filename().string()});
+            std::cout << directory.path().filename().string();
+            std::cout << " (Directory, Size: " << dir_size << " bytes)";
+            std::cout << std::endl;
 
             if (exceeded_limit) {
                 std::cout << "Execution stopped due to one of the limits being reached." << std::endl;
                 break;
             }
-        }
-
-        std::sort(directoriesInfo.begin(), directoriesInfo.end(),
-        [](const std::pair<int, std::string>& a, const std::pair<int, std::string>& b) {
-            return a.first > b.first;  // Sorting by integer in descending order
-        });
-
-        for (int i = 0; i < directoriesInfo.size(); i++) {
-            std::cout << directoriesInfo[i].second;
-            std::cout << " (Size: " << directoriesInfo[i].first << " bytes)";
-            std::cout << std::endl;
         }
 
     } catch (const fs::filesystem_error& e) {
