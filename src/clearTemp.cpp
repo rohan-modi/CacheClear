@@ -1,97 +1,85 @@
 #include <iostream>
 #include <filesystem>
-#include <string>
-#include <cstdlib>
+#include <chrono>
 #include <vector>
+#include <string>
+#include <set>
 
 namespace fs = std::filesystem;
 
-// Function to calculate the total size of a directory recursively with limits
-std::uintmax_t calculate_directory_size(const fs::path& directory, int max_depth, int max_files, std::uintmax_t max_size, int current_depth = 0, int* file_count = nullptr, bool* exceeded_limit = nullptr) {
-    std::uintmax_t total_size = 0;
-    if (current_depth > max_depth && max_depth >= 0) {
-        if (exceeded_limit) *exceeded_limit = true;
-        return total_size;
+// Function to check if a file is older than 24 hours
+bool isOlderThan24Hours(const fs::path& filePath) {
+    auto lastWriteTime = fs::last_write_time(filePath);
+    auto now = fs::file_time_type::clock::now();
+    auto age = std::chrono::duration_cast<std::chrono::hours>(now - lastWriteTime).count();
+    return age > 24;
+}
+
+// Function to check if a path is in an excluded directory
+bool isInExcludedDirectory(const fs::path& filePath, const std::set<std::string>& excludedDirs) {
+    for (const auto& dir : excludedDirs) {
+        if (filePath.string().find(dir) == 0) {
+            return true;
+        }
     }
+    return false;
+}
 
-    try {
-        for (const auto& entry : fs::directory_iterator(directory)) {
-            if (fs::is_regular_file(entry.status())) {
-                total_size += fs::file_size(entry);
-                if (file_count) (*file_count)++;
+// Function to confirm deletion
+bool confirmDeletion(const fs::path& file) {
+    char response;
+    std::cout << "Delete file: " << file << "? (y/n): ";
+    std::cin >> response;
+    return (response == 'y' || response == 'Y');
+}
 
-                if (max_files >= 0 && file_count && *file_count > max_files) {
-                    if (exceeded_limit) *exceeded_limit = true;
-                    return total_size;
-                }
+// Main file cleanup function
+void cleanFiles(const fs::path& directory, bool force) {
+    std::set<std::string> excludedDirs = {"/etc", "/bin", "/usr", "/lib", "/opt", "/sbin"};
+    std::vector<fs::path> filesToDelete;
 
-                if (max_size >= 0 && total_size > max_size) {
-                    if (exceeded_limit) *exceeded_limit = true;
-                    return total_size;
+    for (const auto& entry : fs::recursive_directory_iterator(directory)) {
+        if (entry.is_regular_file()) {
+            auto filePath = entry.path();
+            auto extension = filePath.extension().string();
+
+            // Skip sensitive directories and files
+            if (isInExcludedDirectory(filePath, excludedDirs)) {
+                continue;
+            }
+
+            // Target only specific file types
+            if (extension == ".tmp" || extension == ".log" || extension == ".cache") {
+                // Skip `.tmp` files modified within the last 24 hours
+                if (extension == ".tmp" && !isOlderThan24Hours(filePath)) {
+                    continue;
                 }
-            } else if (fs::is_directory(entry.status())) {
-                total_size += calculate_directory_size(entry.path(), max_depth, max_files, max_size, current_depth + 1, file_count, exceeded_limit);
-                if (exceeded_limit && *exceeded_limit) {
-                    return total_size;
-                }
+                filesToDelete.push_back(filePath);
             }
         }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
     }
-    return total_size;
+
+    // Process deletions
+    for (const auto& file : filesToDelete) {
+        if (force || confirmDeletion(file)) {
+            try {
+                fs::remove(file);
+                std::cout << "Deleted: " << file << "\n";
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to delete " << file << ": " << e.what() << "\n";
+            }
+        } else {
+            std::cout << "Skipped: " << file << "\n";
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
-    int max_depth = -1;
-    int max_files = -1;
-    std::uintmax_t max_size = -1;
+    fs::path directory = fs::current_path(); // Always use the current directory
+    bool force = (argc > 1 && std::string(argv[1]) == "--force");
 
-    if (argc > 1) max_depth = std::stoi(argv[1]);
-    if (argc > 2) max_files = std::stoi(argv[2]);
-    if (argc > 3) max_size = std::stoull(argv[3]);
+    std::cout << "Cleaning files in directory: " << directory << "\n";
 
-    fs::path current_directory = fs::current_path();
-
-    try {
-        int file_count = 0;
-        bool exceeded_limit = false;
-
-        // Separate files and directories
-        std::vector<fs::directory_entry> files;
-        std::vector<fs::directory_entry> directories;
-
-        for (const auto& entry : fs::directory_iterator(current_directory)) {
-            if (fs::is_regular_file(entry.status())) {
-                files.push_back(entry);
-            } else if (fs::is_directory(entry.status())) {
-                directories.push_back(entry);
-            }
-        }
-
-        // Output files first
-        for (const auto& file : files) {
-            std::cout << file.path().filename().string();
-            std::cout << " (Size: " << fs::file_size(file) << " bytes)";
-            std::cout << std::endl;
-        }
-
-        // Output directories
-        for (const auto& directory : directories) {
-            std::uintmax_t dir_size = calculate_directory_size(directory.path(), max_depth, max_files, max_size, 1, &file_count, &exceeded_limit);
-            std::cout << directory.path().filename().string();
-            std::cout << " (Directory, Size: " << dir_size << " bytes)";
-            std::cout << std::endl;
-
-            if (exceeded_limit) {
-                std::cout << "Execution stopped due to one of the limits being reached." << std::endl;
-                break;
-            }
-        }
-
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
-
+    cleanFiles(directory, force);
     return 0;
 }

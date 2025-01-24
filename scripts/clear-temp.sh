@@ -23,7 +23,7 @@ if [ $? -eq 0 ]; then
         echo
 
         # Execute the specific executable with parameters
-        "$EXECUTABLE"
+        "$EXECUTABLE" "$@"
     else
         echo "Error: Executable $EXECUTABLE not found or not executable."
         exit 1

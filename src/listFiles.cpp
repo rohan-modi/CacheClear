@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
 
         for (int i = 0; i < directoriesInfo.size(); i++) {
             std::cout << directoriesInfo[i].second;
-            std::cout << " (Size: " << directoriesInfo[i].first << " bytes)";
+            std::cout << " Directory (Size: " << directoriesInfo[i].first << " bytes)";
             std::cout << std::endl;
         }
 
